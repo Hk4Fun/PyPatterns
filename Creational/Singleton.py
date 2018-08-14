@@ -64,9 +64,11 @@ class Singleton1:
 # 使用一个字典来存放不同类对应的实例，因为一个装饰器可以用来装饰多个类
 # 这样装饰器可以对不同的类生成不同的实例，对相同的类生成相同的实例
 # 且该方法比第一种方法更优：只有第一次实例化调用了 __init__()
+from functools import wraps
 def singleton2(cls):
     instances = {}  # 使用一个字典来存放不同类对应的实例，因为一个装饰器可以用来装饰多个类
 
+    @wraps(cls)
     def wrapper(*args, **kwargs):
         if cls not in instances:
             instances[cls] = cls(*args, **kwargs)
@@ -172,7 +174,6 @@ Singleton6 = Singleton6()  # 提前生成实例
 
 # 以上除了使用变量名覆盖的方法实现的是饿汉单例外，其他的方法实现的都是懒汉单例
 # 但这些实现都没有考虑多线程下的线程安全问题
-# 因此这里以第一个方法：重载 __new__() 为例，加入Lock来实现线程安全的单例模式
 # 主要就是实现一个装饰器即可，其他实现方法都可以使用该装饰器
 # 但在多线程环境测试下发现加不加锁都是线程安全的。。。
 # 这是因为Python GIL的存在，使得Python下的懒汉单例天生就是线程安全的
@@ -184,6 +185,7 @@ from threading import Thread, Lock
 def synchronized(func):
     lock = Lock()
 
+    @wraps(func)
     def lock_func(*args, **kwargs):
         with lock:
             return func(*args, **kwargs)
@@ -248,5 +250,10 @@ if __name__ == '__main__':
     assert Singleton6() is Singleton6() is Singleton6
     print('check singleton6 done!')
 
-    print('is {} thread safe? {}'.format(Singleton1.__name__, testThreadSafe(Singleton1)))
-    print('is {} thread safe? {}'.format(SyncSingleton.__name__, testThreadSafe(SyncSingleton)))
+    fmt = 'is {} thread safe? {}'
+    print(fmt.format(Singleton1.__name__, testThreadSafe(Singleton1)))
+    print(fmt.format(MyClass1.__name__, testThreadSafe(MyClass1)))
+    print(fmt.format(MyClass2.__name__, testThreadSafe(MyClass2)))
+    print(fmt.format(MyClass4.__name__, testThreadSafe(MyClass4)))
+    print(fmt.format(Singleton5.getInstance.__name__, testThreadSafe(Singleton5.getInstance)))
+    print(fmt.format(SyncSingleton.__name__, testThreadSafe(SyncSingleton)))
