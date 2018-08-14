@@ -50,6 +50,7 @@ Ensure a class has only one instance, and provide a global point of access to it
 # 将一个类的实例绑定到类变量_instance上,
 # 如果cls._instance为None说明该类还没有实例化过，则实例化该类并保存于cls._instance，然后返回
 # 如果cls._instance不为None，则直接返回cls._instance
+# 该方法在每次生成实例时都会调用 __init__() 来重置实例属性
 class Singleton1:
     _instance = None
 
@@ -91,6 +92,7 @@ class MyClass2:
 # 所有实例共享属性的最简单最直接的方法就是__dict__属性指向(引用)同一个字典
 # 虽然这么做各个实例的id不一样，即内存地址不一样，
 # 但表现出来的行为和属性却是一样的，它们共享了同一套属性和方法
+# 该方法也会在每次实例化时调用 `__init__` 重置实例属性
 
 class singleton3:
     _state = {}
@@ -110,6 +112,7 @@ class MyClass3(singleton3):
 # 重载元类的__init__()和__call__()（或 `__new__()` 和 `__call__()`）
 # 其原理和重载__new__()一样，因为元类的__call__()首先就是调用类的__new__()来得到类的一个实例
 # 因此我们可以在更早的时间点hook，即在元类中提前检查是否含有单例
+# 同时该方法和装饰器一样只调用一次 `__init__()`
 class Singleton4(type):
     # def __new__(cls, name, bases, dict, **kwargs):
     #     cls._instance = None
@@ -120,7 +123,7 @@ class Singleton4(type):
         super().__init__(name, bases, dict)
 
     def __call__(cls, *args, **kwargs):
-        if cls._instance is None:
+        if cls._instance is None: # 有就直接返回该实例对象，避免进入super().__call__()中重复调用类的__init__()
             cls._instance = super().__call__(*args, **kwargs)
         return cls._instance
 
@@ -135,6 +138,7 @@ class MyClass4(metaclass=Singleton4):  # 直接声明元类即可
 # 但这不能阻止用户直接调用类（调用 `__init__()`）来生成
 # 在Java等静态语言中可以通过一个私有方法来将构造方法屏蔽起来不让用户去调用，
 # 但在Python中没有私有方法这一说法
+# 如果用户能做到严格按照类方法来获取实例，那么 `__init__()` 只会被调用一次
 
 class Singleton5():
     _instance = None
@@ -151,6 +155,7 @@ class Singleton5():
 # 一开始就生成一个实例，并用一个与类名相同的变量名作为该实例的变量名
 # 而我们在类的 `__call__()` 中总是返回自己，这样后面试图去生成新的实例时
 # 其本质都是调用了 `__call__()` 来返回自己，十分巧妙，而且注意到这种实现方式是一种饿汉单例
+# 同时该方法和装饰器一样只调用一次 `__init__()`
 
 class Singleton6:
     def __call__(self):
@@ -158,6 +163,12 @@ class Singleton6:
 
 
 Singleton6 = Singleton6()  # 提前生成实例
+
+# 综上六种实现单例模式的方法，
+# 装饰器、元类以及变量名覆盖的单例模式实现都能保证只调用一次 __init__()
+# 而重载 __new__() 和 @classmethod 的实现方式虽然返回的总是同一个实例
+# 但在每次生成实例时都会去调用__init__()重置实例属性，这有时会带来严重的BUG
+# 至于共享属性的实现方式则取决于用户的实际调用
 
 # 以上除了使用变量名覆盖的方法实现的是饿汉单例外，其他的方法实现的都是懒汉单例
 # 但这些实现都没有考虑多线程下的线程安全问题
@@ -183,7 +194,7 @@ def synchronized(func):
 class SyncSingleton:
     _instance = None
 
-    @synchronized
+    @synchronized # 注意到装饰器是在载入时执行的，所以装饰器本身是线程安全的
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls, *args, **kwargs)
