@@ -163,12 +163,15 @@ Singleton6 = Singleton6()  # 提前生成实例
 # 但这些实现都没有考虑多线程下的线程安全问题
 # 因此这里以第一个方法：重载 __new__() 为例，加入Lock来实现线程安全的单例模式
 # 主要就是实现一个装饰器即可，其他实现方法都可以使用该装饰器
+# 但在多线程环境测试下发现加不加锁都是线程安全的。。。
+# 这是因为Python GIL的存在，使得Python下的懒汉单例天生就是线程安全的
 
-import threading
+
+from threading import Thread, Lock
 
 
 def synchronized(func):
-    lock = threading.Lock()
+    lock = Lock()
 
     def lock_func(*args, **kwargs):
         with lock:
@@ -187,7 +190,8 @@ class SyncSingleton:
         return cls._instance
 
 
-threadsNum = 10000
+threadsNum = 100
+testNum = 100
 
 
 def getInstance(singleton, instances):
@@ -195,17 +199,16 @@ def getInstance(singleton, instances):
 
 
 def testThreadSafe(singleton):
-    threads = []
-    instances = []
-    for i in range(threadsNum):
-        t = threading.Thread(target=getInstance, args=(singleton, instances))
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join()
-    for ins in instances:
-        if ins is not instances[0]:
-            return False
+    for _ in range(testNum):
+        instances = []
+        threads = (Thread(target=getInstance, args=(singleton, instances)) for _ in range(threadsNum))
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        for ins in instances:
+            if ins is not instances[0]:
+                return False
     return True
 
 
