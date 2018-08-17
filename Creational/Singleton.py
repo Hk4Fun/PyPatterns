@@ -113,13 +113,24 @@ def synchronized(func):
 
 
 class SyncSingleton:
-    _instance = None
+    _instances = {}
 
-    @synchronized
+    @synchronized  # 注意到装饰器是在载入时执行的，所以装饰器本身是线程安全的
     def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls, *args, **kwargs)
-        return cls._instance
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__new__(cls, *args, **kwargs)
+        return cls._instances[cls]
+
+class DoubleCheckLocking:
+    _instances = {}
+    _lock = Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if cls not in cls._instances:  # 外层提高性能
+            with cls._lock:
+                if cls not in cls._instances:  # 内层是核心逻辑
+                    cls._instances[cls] = super().__new__(cls, *args, **kwargs)
+        return cls._instances[cls]
 
 
 threadsNum = 100
@@ -176,3 +187,4 @@ if __name__ == '__main__':
     print(fmt.format(MyClass4.__name__, testThreadSafe(MyClass4)))
     print(fmt.format(Singleton5.getInstance.__name__, testThreadSafe(Singleton5.getInstance)))
     print(fmt.format(SyncSingleton.__name__, testThreadSafe(SyncSingleton)))
+    print(fmt.format(DoubleCheckLocking.__name__, testThreadSafe(DoubleCheckLocking)))
