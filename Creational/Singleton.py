@@ -1,70 +1,24 @@
 __author__ = 'Hk4Fun'
 __date__ = '2018/8/13 17:02'
 
-'''
-定义：
-Ensure a class has only one instance, and provide a global point of access to it.
 
-1、某个类只能有一个实例
-2、该类必须自行创建和管理这个实例
-3、必须向整个系统提供这个实例
-
-角色：
-只包含一个单例类
-
-优点：
-1、提供对唯一实例的受控访问
-2、节约系统资源，提高系统性能
-3、允许可变数目的实例（多例模式）
-
-缺点：
-1、缺少抽象层而难以扩展
-2、单例类职责过重
-
-适用场景：
-1、系统只需要一个实例对象（如windows的资源管理器、唯一序列号生成器、py中的None、某些UI窗口）
-2、客户调用类的单个实例只允许使用一个公共访问点，除了该公共访问点，不能通过其他途径访问该实例
-
-实现方式：
-1、懒汉单例（常用）：lazy singleton
-在第一次被引用时，才将自己实例化。避免开始时占用系统资源，但是有多线程访问安全性问题。
-
-2、饿汉单例：eager singleton
-在类被加载时就将自己实例化（静态初始化）。其优点是躲避了多线程访问的安全性问题，缺点是提前占用系统资源。
-
-这里需要注意的是，Python中类的加载机制与java不一样，
-前者动态后者静态，因此在Python中实现饿汉单例比较特殊
-后面的变量名覆盖方法其实就是一种饿汉单例
-
-关于线程安全：
-懒汉单例在多线程环境下需要考虑线程安全的问题，因此需要使用Lock。
-但由于Python GIL的存在，使得懒汉单例不需要加Lock也是线程安全的，
-在多线程环境测试下发现加不加锁都是线程安全的。。。
-
-扩展：
-多例模式，返回多个（有限个）实例对象
-'''
+# https://hk4fun.github.io/2018/08/15/%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F%E4%B9%8B%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F/
 
 
 # 重载 __new__()：
-# 将一个类的实例绑定到类变量_instance上,
-# 如果cls._instance为None说明该类还没有实例化过，则实例化该类并保存于cls._instance，然后返回
-# 如果cls._instance不为None，则直接返回cls._instance
-# 该方法在每次生成实例时都会调用 __init__() 来重置实例属性
 class Singleton1:
-    _instance = None
+    _instances = {}
 
-    def __new__(cls, *args, **kw):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls, *args, **kw)
-        return cls._instance
+    def __new__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__new__(cls, *args, **kwargs)
+        return cls._instances[cls]
 
 
 # 使用装饰器：
-# 使用一个字典来存放不同类对应的实例，因为一个装饰器可以用来装饰多个类
-# 这样装饰器可以对不同的类生成不同的实例，对相同的类生成相同的实例
-# 且该方法比第一种方法更优：只有第一次实例化调用了 __init__()
 from functools import wraps
+
+
 def singleton2(cls):
     instances = {}  # 使用一个字典来存放不同类对应的实例，因为一个装饰器可以用来装饰多个类
 
@@ -88,14 +42,6 @@ class MyClass2:
 
 
 # 共享属性（不是严格的单例）：
-# 所谓单例就是所有实例对象拥有相同的状态(属性)和行为(方法)
-# 同一个类的所有实例本来就拥有相同的行为(方法),
-# 只需要保证同一个类的所有实例具有相同的状态(属性)即可
-# 所有实例共享属性的最简单最直接的方法就是__dict__属性指向(引用)同一个字典
-# 虽然这么做各个实例的id不一样，即内存地址不一样，
-# 但表现出来的行为和属性却是一样的，它们共享了同一套属性和方法
-# 该方法也会在每次实例化时调用 `__init__` 重置实例属性
-
 class singleton3:
     _state = {}
 
@@ -111,10 +57,6 @@ class MyClass3(singleton3):
 
 
 # 使用元类：
-# 重载元类的__init__()和__call__()（或 `__new__()` 和 `__call__()`）
-# 其原理和重载__new__()一样，因为元类的__call__()首先就是调用类的__new__()来得到类的一个实例
-# 因此我们可以在更早的时间点hook，即在元类中提前检查是否含有单例
-# 同时该方法和装饰器一样只调用一次 `__init__()`
 class Singleton4(type):
     # def __new__(cls, name, bases, dict, **kwargs):
     #     cls._instance = None
@@ -125,7 +67,7 @@ class Singleton4(type):
         super().__init__(name, bases, dict)
 
     def __call__(cls, *args, **kwargs):
-        if cls._instance is None: # 有就直接返回该实例对象，避免进入super().__call__()中重复调用类的__init__()
+        if cls._instance is None:  # 有就直接返回该实例对象，避免进入super().__call__()中重复调用类的__init__()
             cls._instance = super().__call__(*args, **kwargs)
         return cls._instance
 
@@ -134,14 +76,7 @@ class MyClass4(metaclass=Singleton4):  # 直接声明元类即可
     pass
 
 
-# - 使用@classmethod：
-# 这种实现方式很牵强，通过实现一个类方法来返回实例，
-# 用户通过调用该类方法来获取唯一的那个实例，
-# 但这不能阻止用户直接调用类（调用 `__init__()`）来生成
-# 在Java等静态语言中可以通过一个私有方法来将构造方法屏蔽起来不让用户去调用，
-# 但在Python中没有私有方法这一说法
-# 如果用户能做到严格按照类方法来获取实例，那么 `__init__()` 只会被调用一次
-
+# 使用@classmethod：
 class Singleton5():
     _instance = None
 
@@ -153,12 +88,6 @@ class Singleton5():
 
 
 # 使用变量名覆盖：
-# 最简单最巧妙的实现方式，得益于 Python 强大的动态语言特性和丰富的魔法方法
-# 一开始就生成一个实例，并用一个与类名相同的变量名作为该实例的变量名
-# 而我们在类的 `__call__()` 中总是返回自己，这样后面试图去生成新的实例时
-# 其本质都是调用了 `__call__()` 来返回自己，十分巧妙，而且注意到这种实现方式是一种饿汉单例
-# 同时该方法和装饰器一样只调用一次 `__init__()`
-
 class Singleton6:
     def __call__(self):
         return self
@@ -166,18 +95,8 @@ class Singleton6:
 
 Singleton6 = Singleton6()  # 提前生成实例
 
-# 综上六种实现单例模式的方法，
-# 装饰器、元类以及变量名覆盖的单例模式实现都能保证只调用一次 __init__()
-# 而重载 __new__() 和 @classmethod 的实现方式虽然返回的总是同一个实例
-# 但在每次生成实例时都会去调用__init__()重置实例属性，这有时会带来严重的BUG
-# 至于共享属性的实现方式则取决于用户的实际调用
-
-# 以上除了使用变量名覆盖的方法实现的是饿汉单例外，其他的方法实现的都是懒汉单例
-# 但这些实现都没有考虑多线程下的线程安全问题
-# 主要就是实现一个装饰器即可，其他实现方法都可以使用该装饰器
-# 但在多线程环境测试下发现加不加锁都是线程安全的。。。
-# 这是因为Python GIL的存在，使得Python下的懒汉单例天生就是线程安全的
-
+# 多线程环境测试下发现加不加锁都是线程安全的。。。
+# 很可能是因为Python GIL的存在，使得Python下的懒汉单例是线程安全的
 
 from threading import Thread, Lock
 
@@ -196,7 +115,7 @@ def synchronized(func):
 class SyncSingleton:
     _instance = None
 
-    @synchronized # 注意到装饰器是在载入时执行的，所以装饰器本身是线程安全的
+    @synchronized
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls, *args, **kwargs)
